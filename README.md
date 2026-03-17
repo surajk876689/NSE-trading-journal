@@ -1,1 +1,0 @@
-# NSE-trading-journal
