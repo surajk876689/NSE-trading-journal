@@ -1,0 +1,127 @@
+====================================================
+  TRADING JOURNAL APP — ALGORITHM EXPLANATION
+====================================================
+
+This is a Flask-based web app for logging and analyzing stock trades.
+Below is a breakdown of every major algorithm and logic block.
+
+----------------------------------------------------
+1. DATABASE INITIALIZATION (init_db)
+----------------------------------------------------
+- Connects to SQLite file "trades.db"
+- Creates a "trades" table if it doesn't exist with columns:
+    id, stock_name, buy_price, sell_price, quantity,
+    buy_date, sell_date, holding_days, profit, pct_return
+- Runs a schema migration: checks existing columns via PRAGMA
+  and adds any missing ones (buy_date, sell_date, holding_days)
+  using ALTER TABLE — so old databases are upgraded safely.
+
+----------------------------------------------------
+2. P&L CALCULATION (calculate_pnl)
+----------------------------------------------------
+Formula:
+    profit     = (sell_price - buy_price) * quantity
+    pct_return = (profit / (buy_price * quantity)) * 100
+
+Example:
+    buy=100, sell=120, qty=10
+    profit     = (120 - 100) * 10 = ₹200
+    pct_return = (200 / 1000) * 100 = 20%
+
+----------------------------------------------------
+3. HOLDING DAYS (holding_days)
+----------------------------------------------------
+- Parses buy_date and sell_date strings as YYYY-MM-DD
+- Returns (sell_date - buy_date).days
+- Uses max(0, ...) to prevent negative values
+- Returns 0 on any parse error
+
+----------------------------------------------------
+4. ADD TRADE VALIDATION (add_trade)
+----------------------------------------------------
+Sequential validation steps:
+  Step 1 — All fields present (no empty strings)
+  Step 2 — buy_price, sell_price, quantity are valid floats
+  Step 3 — All three values are > 0
+  Step 4 — sell_date >= buy_date (no time travel)
+
+If all pass:
+  - calculate_pnl() and holding_days() are called
+  - Result is inserted into the DB
+
+----------------------------------------------------
+5. SUMMARY STATS (get_summary)
+----------------------------------------------------
+Given a list of trades:
+    total_profit   = sum of all profits where profit > 0
+    total_loss     = sum of all profits where profit < 0
+    win_count      = count of trades with profit > 0
+    loss_count     = count of trades with profit < 0
+    win_loss_ratio = win_count / loss_count
+                     (if loss_count == 0, ratio = win_count)
+
+----------------------------------------------------
+6. STOCK AUTOCOMPLETE (suggest)
+----------------------------------------------------
+- Takes query param "q", uppercases it
+- First queries DB for stocks starting with q (user's own history)
+- Then filters KNOWN_STOCKS list for matches not already in DB results
+- Merges both lists, returns top 8 results as JSON
+
+Priority: user's own traded stocks appear first.
+
+----------------------------------------------------
+7. RULE-BASED AI INSIGHT (ai_insight)
+----------------------------------------------------
+For a single trade, generates text tips using if/elif chains:
+
+  Return quality (pct_return):
+    >= 20%   → "Excellent trade"
+    >= 10%   → "Strong return"
+    >= 5%    → "Decent return"
+    >= 0%    → "Small gain"
+    >= -5%   → "Small loss"
+    >= -10%  → "Moderate loss"
+    < -10%   → "Significant loss"
+
+  Holding period (holding_days):
+    0 days   → Intraday
+    1–3 days → Short-term
+    4–15d    → Swing trade
+    16–90d   → Medium-term
+    > 90d    → Long-term (positive or negative message based on profit)
+
+  Volatility check:
+    move_pct = abs((sell - buy) / buy * 100)
+    < 2% with a loss → suggests checking brokerage costs
+    > 15%            → warns about high volatility
+
+All tips are joined into a single string and returned as JSON.
+
+----------------------------------------------------
+8. RULE-BASED AI SUMMARY (ai_summary)
+----------------------------------------------------
+Runs across ALL trades:
+  - Reports total trades, wins, losses
+  - Evaluates win/loss ratio:
+      >= 2   → Excellent
+      >= 1   → Good
+      == 0 losses → Perfect start
+      < 1    → Needs improvement
+  - Net P&L = total_profit + total_loss (positive/negative/breakeven)
+  - Average holding days → classifies trading style:
+      <= 1d  → Intraday
+      <= 7d  → Swing trader
+      > 7d   → Positional trader
+  - Finds best trade (max pct_return) and worst trade (min pct_return)
+
+All observations are joined and returned as JSON.
+
+----------------------------------------------------
+9. DB CONNECTION LIFECYCLE
+----------------------------------------------------
+- get_db() uses Flask's "g" object to reuse one connection per request
+- close_connection() is registered as a teardown hook — runs after
+  every request to close the SQLite connection cleanly
+
+====================================================

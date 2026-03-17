@@ -1,0 +1,227 @@
+====================================================
+  TRADING JOURNAL APP — FEATURES, LIMITATIONS
+  & HOW TO RUN
+====================================================
+
+
+====================================================
+SECTION 1: FEATURES
+====================================================
+
+1. ADD TRADE
+   - Log a completed stock trade with:
+     stock name, buy price, sell price, quantity,
+     buy date, sell date
+   - Auto-calculates profit/loss and % return
+   - Auto-calculates number of holding days
+
+2. EDIT TRADE
+   - Update any previously logged trade
+   - Recalculates P&L and holding days on save
+
+3. DELETE TRADE
+   - Remove any trade permanently from the journal
+
+4. TRADE LIST VIEW
+   - All trades displayed sorted by sell date (newest first)
+   - Shows: stock name, buy/sell price, quantity,
+     dates, holding days, profit, % return
+
+5. SUMMARY STATS (auto-calculated)
+   - Total profit (sum of winning trades)
+   - Total loss (sum of losing trades)
+   - Win count and loss count
+   - Win/Loss ratio
+
+6. STOCK NAME AUTOCOMPLETE
+   - As you type a stock name, suggestions appear
+   - Prioritizes stocks from your own trade history
+   - Falls back to a built-in list of 500+ Indian stocks
+     (Nifty 50, Nifty Next 50, Banking, IT, Pharma,
+      Auto, FMCG, Metals, Energy, Infra, and more)
+
+7. AI INSIGHT (per trade)
+   - Click "Insight" on any trade to get a rule-based
+     analysis covering:
+     * Return quality (excellent / decent / loss severity)
+     * Holding period classification
+       (intraday / swing / medium / long-term)
+     * Volatility warning if price move > 15%
+     * Brokerage cost warning for tiny-move losses
+
+8. AI SUMMARY (overall portfolio)
+   - Click "Summary" to get an analysis of all trades:
+     * Total trades, wins, losses
+     * Win/loss ratio evaluation
+     * Net P&L status (profit / loss / breakeven)
+     * Trading style classification
+       (intraday / swing / positional)
+     * Best and worst trade by % return
+
+9. PERSISTENT STORAGE
+   - All trades saved in a local SQLite file (trades.db)
+   - Data survives app restarts
+   - Auto schema migration for older databases
+
+
+====================================================
+SECTION 2: LIMITATIONS
+====================================================
+
+1. NO USER AUTHENTICATION
+   - Single-user app only
+   - No login, no multi-user support
+   - Anyone with access to the machine can see all trades
+
+2. NO REAL-TIME MARKET DATA
+   - Prices must be entered manually
+   - No live stock price fetching or API integration
+
+3. RULE-BASED AI (NOT MACHINE LEARNING)
+   - "AI Insight" and "AI Summary" are simple if/else rules
+   - Not trained on real market data
+   - Cannot predict future performance
+   - Advice is generic, not personalized
+
+4. INDIAN STOCKS ONLY (in autocomplete)
+   - KNOWN_STOCKS list contains only Indian equities
+   - No support for US stocks, crypto, forex, or commodities
+     in the suggestion list (you can still type any name manually)
+
+5. NO PARTIAL TRADES / AVERAGING
+   - Each trade is treated as a single buy-sell event
+   - No support for averaging down, partial exits,
+     or multiple buy lots for the same position
+
+6. NO BROKERAGE / TAX CALCULATION
+   - P&L is raw (sell - buy) * qty
+   - Does not account for brokerage fees, STT, GST,
+     or capital gains tax
+
+7. NO CHARTS OR GRAPHS
+   - No visual performance charts, equity curves,
+     or drawdown graphs
+
+8. NO EXPORT FEATURE
+   - Cannot export trades to CSV, Excel, or PDF
+
+9. LOCAL ONLY
+   - Runs on localhost, not accessible over the internet
+     without additional setup (e.g., ngrok, deployment)
+
+10. NO INPUT SANITIZATION BEYOND BASIC VALIDATION
+    - No protection against SQL injection beyond
+      parameterized queries (which is good)
+    - But no XSS protection on rendered trade names
+
+
+====================================================
+SECTION 3: HOW TO RUN ON YOUR SYSTEM
+====================================================
+
+--- REQUIREMENTS ---
+
+  - Python 3.8 or higher
+  - pip (Python package manager)
+
+--- STEP 1: Clone or download the project ---
+
+  Place all files in a folder, e.g.:
+    C:\Users\YourName\trading-journal\
+  
+  Files needed:
+    app.py
+    templates/index.html
+    (trades.db will be created automatically)
+
+--- STEP 2: Create a virtual environment (recommended) ---
+
+  Windows (CMD):
+    python -m venv .venv
+    .venv\Scripts\activate
+
+  Windows (PowerShell):
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+
+  Mac / Linux:
+    python3 -m venv .venv
+    source .venv/bin/activate
+
+--- STEP 3: Install dependencies ---
+
+  pip install flask
+
+  (Only Flask is needed — sqlite3 is built into Python)
+
+--- STEP 4: Run the app ---
+
+  python app.py
+
+  You should see output like:
+    * Running on http://127.0.0.1:5000
+    * Debug mode: on
+
+--- STEP 5: Open in browser ---
+
+  Go to:
+    http://127.0.0.1:5000
+  or
+    http://localhost:5000
+
+--- STEP 6: Stop the app ---
+
+  Press Ctrl + C in the terminal
+
+--- OPTIONAL: requirements.txt ---
+
+  If you want to create a requirements file:
+    pip freeze > requirements.txt
+
+  To install from it later:
+    pip install -r requirements.txt
+
+
+====================================================
+SECTION 4: FOLDER STRUCTURE
+====================================================
+
+  trading-journal/
+  |
+  |-- app.py                  (main Flask application)
+  |-- trades.db               (SQLite database, auto-created)
+  |-- templates/
+  |     |-- index.html        (frontend UI)
+  |
+  |-- algorithm_explanation.txt
+  |-- flowchart_explanation.txt
+  |-- features_and_setup.txt  (this file)
+
+
+====================================================
+SECTION 5: QUICK TROUBLESHOOTING
+====================================================
+
+  Problem: "ModuleNotFoundError: No module named 'flask'"
+  Fix:     Run --> pip install flask
+
+  Problem: "Address already in use" on port 5000
+  Fix:     Another app is using port 5000.
+           Change port in app.py last line:
+             app.run(debug=True, port=5001)
+           Then visit http://localhost:5001
+
+  Problem: trades.db not created
+  Fix:     Make sure you run app.py from the project
+           folder, not from a different directory.
+
+  Problem: PowerShell says "cannot be loaded because
+           running scripts is disabled"
+  Fix:     Run this once in PowerShell as admin:
+             Set-ExecutionPolicy RemoteSigned
+
+  Problem: Changes not saving
+  Fix:     Make sure the folder has write permissions.
+           Try running terminal as administrator.
+
+====================================================

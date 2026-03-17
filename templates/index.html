@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NSE Trading Journal</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f0f1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 28px 24px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #818cf8, #38bdf8, #34d399);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 28px;
+      letter-spacing: -0.5px;
+    }
+
+    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #94a3b8; text-transform: uppercase; letter-spacing: .08em; }
+
+    section {
+      background: linear-gradient(145deg, #1e1e2e, #16213e);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 22px 26px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    /* ── Summary cards ── */
+    .cards { display: flex; gap: 16px; flex-wrap: wrap; }
+
+    .card {
+      flex: 1;
+      min-width: 160px;
+      border-radius: 12px;
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+      transform: perspective(600px) rotateX(2deg);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: default;
+    }
+
+    .card:hover {
+      transform: perspective(600px) rotateX(0deg) translateY(-4px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
+      border-radius: 12px;
+    }
+
+    .card-profit  { background: linear-gradient(135deg, #064e3b, #065f46); border: 1px solid #10b981; }
+    .card-loss    { background: linear-gradient(135deg, #450a0a, #7f1d1d); border: 1px solid #ef4444; }
+    .card-ratio   { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #818cf8; }
+    .card-wins    { background: linear-gradient(135deg, #0c4a6e, #075985); border: 1px solid #38bdf8; }
+
+    .card .label { font-size: 0.72rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
+    .card .value { font-size: 1.5rem; font-weight: 700; color: #fff; }
+    .card .sub   { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+    /* ── Form ── */
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+
+    .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 130px; }
+
+    label { font-size: 0.78rem; color: #94a3b8; font-weight: 500; }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"] {
+      padding: 9px 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+      width: 100%;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #818cf8;
+      box-shadow: 0 0 0 3px rgba(129,140,248,0.2);
+    }
+
+    input::placeholder { color: #475569; }
+
+    button[type="submit"] {
+      padding: 9px 22px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      align-self: flex-end;
+      box-shadow: 0 4px 15px rgba(99,102,241,0.4);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    button[type="submit"]:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99,102,241,0.5);
+    }
+
+    .msg-error   { color: #f87171; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: rgba(239,68,68,0.1); border-radius: 6px; border-left: 3px solid #ef4444; }
+    .msg-success { color: #34d399; font-size: 0.85rem; margin-bottom: 12px; padding: 8px 12px; background: rgba(52,211,153,0.1); border-radius: 6px; border-left: 3px solid #34d399; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      color: #64748b;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      white-space: nowrap;
+      color: #cbd5e1;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+
+    .profit-pos { color: #34d399; font-weight: 600; }
+    .profit-neg { color: #f87171; font-weight: 600; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-profit { background: rgba(52,211,153,0.15); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+    .badge-loss { background: rgba(248,113,113,0.15); color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+
+    .empty-row td { text-align: center; color: #475569; padding: 32px; }
+
+    .btn-delete {
+      padding: 4px 12px;
+      background: rgba(239,68,68,0.1);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-delete:hover { background: rgba(239,68,68,0.2); }
+
+    .btn-edit {
+      padding: 4px 12px;
+      background: rgba(129,140,248,0.1);
+      color: #818cf8;
+      border: 1px solid rgba(129,140,248,0.3);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-right: 4px;
+    }
+    .btn-edit:hover { background: rgba(129,140,248,0.2); }
+
+    .btn-cancel {
+      padding: 4px 12px;
+      background: rgba(100,116,139,0.1);
+      color: #94a3b8;
+      border: 1px solid rgba(100,116,139,0.3);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+
+    /* ── AI ── */
+    .btn-ai {
+      padding: 4px 10px;
+      background: rgba(56,189,248,0.1);
+      color: #38bdf8;
+      border: 1px solid rgba(56,189,248,0.3);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-right: 4px;
+    }
+    .btn-ai:hover { background: rgba(56,189,248,0.2); }
+    .ai-insight-box {
+      display: none;
+      margin-top: 6px;
+      padding: 8px 12px;
+      background: rgba(56,189,248,0.07);
+      border-left: 3px solid #38bdf8;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: #bae6fd;
+      white-space: normal;
+      max-width: 500px;
+    }
+    .btn-ai-summary {
+      padding: 7px 18px;
+      background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 14px;
+      box-shadow: 0 4px 15px rgba(14,165,233,0.3);
+      transition: transform 0.15s;
+    }
+    .btn-ai-summary:hover { transform: translateY(-2px); }
+    #ai-summary-box {
+      display: none;
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: rgba(56,189,248,0.07);
+      border-left: 3px solid #38bdf8;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      color: #bae6fd;
+      line-height: 1.7;
+    }
+
+    .edit-row { display: none; background: rgba(129,140,248,0.05); }
+    .edit-row td { padding: 12px 14px; }
+    .edit-row input {
+      padding: 5px 8px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(129,140,248,0.4);
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.82rem;
+      width: 100%;
+    }
+    .edit-inner { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+    .edit-field { display: flex; flex-direction: column; gap: 3px; min-width: 100px; flex: 1; }
+    .edit-field label { font-size: 0.7rem; color: #64748b; }
+    .btn-save {
+      padding: 5px 14px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      align-self: flex-end;
+    }
+
+    /* ── Chart ── */
+    .chart-wrap { position: relative; height: 220px; }
+
+    /* ── Autocomplete ── */
+    .autocomplete-wrap { position: relative; }
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #1e1e2e;
+      border: 1px solid rgba(129,140,248,0.4);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      z-index: 100;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .autocomplete-list div {
+      padding: 8px 12px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      color: #cbd5e1;
+    }
+    .autocomplete-list div:hover { background: rgba(129,140,248,0.15); color: #fff; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .tab.active, .tab:hover {
+      background: rgba(129,140,248,0.15);
+      border-color: #818cf8;
+      color: #818cf8;
+    }
+  </style>
+</head>
+<body>
+
+<h1>📊 NSE Trading Journal</h1>
+
+<!-- ── Summary Cards ── -->
+<section>
+  <h2>Performance Overview</h2>
+  <div class="cards">
+    <div class="card card-profit">
+      <div class="label">Total Profit</div>
+      <div class="value">₹{{ "%.2f"|format(summary.total_profit) }}</div>
+      <div class="sub">{{ summary.win_count }} profit trade{{ 's' if summary.win_count != 1 }}</div>
+    </div>
+    <div class="card card-loss">
+      <div class="label">Total Loss</div>
+      <div class="value">₹{{ "%.2f"|format(summary.total_loss) }}</div>
+      <div class="sub">{{ summary.loss_count }} losing trade{{ 's' if summary.loss_count != 1 }}</div>
+    </div>
+    <div class="card card-ratio">
+      <div class="label">Profit / Loss Ratio</div>
+      <div class="value">{{ "%.2f"|format(summary.win_loss_ratio) }}</div>
+      <div class="sub">higher is better</div>
+    </div>
+    <div class="card card-wins">
+      <div class="label">Net P&L</div>
+      <div class="value {% if summary.total_profit + summary.total_loss >= 0 %}profit-pos{% else %}profit-neg{% endif %}">
+        ₹{{ "%.2f"|format(summary.total_profit + summary.total_loss) }}
+      </div>
+      <div class="sub">overall result</div>
+    </div>
+  </div>
+  <button class="btn-ai-summary" onclick="loadAISummary()">🤖 AI Performance Summary</button>
+  <div id="ai-summary-box"></div>
+</section>
+{% if trades %}
+<section>
+  <h2>P&L Chart</h2>
+  <div class="tabs">
+    <button class="tab active" onclick="showChart('bar', this)">Bar</button>
+    <button class="tab" onclick="showChart('line', this)">Line</button>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="pnlChart"></canvas>
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Add Trade Form ── -->
+<section>
+  <h2>Add Trade</h2>
+  {% if error %}<p class="msg-error">{{ error }}</p>{% endif %}
+  {% if message %}<p class="msg-success">{{ message }}</p>{% endif %}
+  <form method="POST" action="/add">
+    <div class="form-row">
+      <div class="form-group autocomplete-wrap">
+        <label for="stock_name">Stock Name</label>
+        <input type="text" id="stock_name" name="stock_name" placeholder="e.g. RELIANCE" autocomplete="off" required>
+        <div class="autocomplete-list" id="suggest-list" style="display:none"></div>
+      </div>
+      <div class="form-group">
+        <label for="buy_price">Buy Price (₹)</label>
+        <input type="number" id="buy_price" name="buy_price" step="0.01" min="0.01" placeholder="0.00" required>
+      </div>
+      <div class="form-group">
+        <label for="sell_price">Sell Price (₹)</label>
+        <input type="number" id="sell_price" name="sell_price" step="0.01" min="0.01" placeholder="0.00" required>
+      </div>
+      <div class="form-group">
+        <label for="quantity">Quantity</label>
+        <input type="number" id="quantity" name="quantity" step="0.01" min="0.01" placeholder="1" required>
+      </div>
+      <div class="form-group">
+        <label for="buy_date">Buy Date</label>
+        <input type="date" id="buy_date" name="buy_date" required>
+      </div>
+      <div class="form-group">
+        <label for="sell_date">Sell Date</label>
+        <input type="date" id="sell_date" name="sell_date" required>
+      </div>
+      <button type="submit">+ Add Trade</button>
+    </div>
+  </form>
+</section>
+
+<!-- ── Trade History ── -->
+<section>
+  <h2>Trade History</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Stock</th>
+          <th>Buy (₹)</th>
+          <th>Sell (₹)</th>
+          <th>Qty</th>
+          <th>Buy Date</th>
+          <th>Sell Date</th>
+          <th>Held (days)</th>
+          <th>Profit (₹)</th>
+          <th>Return (%)</th>
+          <th>Result</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if trades %}
+          {% for trade in trades %}
+          <tr id="view-{{ trade.id }}">
+            <td><strong style="color:#e2e8f0">{{ trade.stock_name }}</strong></td>
+            <td>₹{{ "%.2f"|format(trade.buy_price) }}</td>
+            <td>₹{{ "%.2f"|format(trade.sell_price) }}</td>
+            <td>{{ trade.quantity }}</td>
+            <td>{{ trade.buy_date }}</td>
+            <td>{{ trade.sell_date }}</td>
+            <td>{{ trade.holding_days }} day{{ 's' if trade.holding_days != 1 }}</td>
+            <td class="{{ 'profit-pos' if trade.profit >= 0 else 'profit-neg' }}">
+              {{ '+' if trade.profit >= 0 else '' }}₹{{ "%.2f"|format(trade.profit) }}
+            </td>
+            <td class="{{ 'profit-pos' if trade.pct_return >= 0 else 'profit-neg' }}">
+              {{ '+' if trade.pct_return >= 0 else '' }}{{ "%.2f"|format(trade.pct_return) }}%
+            </td>
+            <td>
+              <span class="badge {{ 'badge-profit' if trade.profit >= 0 else 'badge-loss' }}">
+                {{ 'PROFIT' if trade.profit >= 0 else 'LOSS' }}
+              </span>
+            </td>
+            <td>
+              <button class="btn-ai" onclick="loadInsight({{ trade.id }}, this)">🤖 Insight</button>
+              <button class="btn-edit" onclick="toggleEdit({{ trade.id }})">Edit</button>
+              <form method="POST" action="/delete/{{ trade.id }}" style="display:inline">
+                <button type="submit" class="btn-delete">Delete</button>
+              </form>
+              <div class="ai-insight-box" id="insight-{{ trade.id }}"></div>
+            </td>
+          </tr>
+          <tr class="edit-row" id="edit-{{ trade.id }}">
+            <td colspan="11">
+              <form method="POST" action="/edit/{{ trade.id }}">
+                <div class="edit-inner">
+                  <div class="edit-field">
+                    <label>Stock</label>
+                    <input type="text" name="stock_name" value="{{ trade.stock_name }}" required>
+                  </div>
+                  <div class="edit-field">
+                    <label>Buy Price</label>
+                    <input type="number" name="buy_price" value="{{ trade.buy_price }}" step="0.01" min="0.01" required>
+                  </div>
+                  <div class="edit-field">
+                    <label>Sell Price</label>
+                    <input type="number" name="sell_price" value="{{ trade.sell_price }}" step="0.01" min="0.01" required>
+                  </div>
+                  <div class="edit-field">
+                    <label>Quantity</label>
+                    <input type="number" name="quantity" value="{{ trade.quantity }}" step="0.01" min="0.01" required>
+                  </div>
+                  <div class="edit-field">
+                    <label>Buy Date</label>
+                    <input type="date" name="buy_date" value="{{ trade.buy_date }}" required>
+                  </div>
+                  <div class="edit-field">
+                    <label>Sell Date</label>
+                    <input type="date" name="sell_date" value="{{ trade.sell_date }}" required>
+                  </div>
+                  <button type="submit" class="btn-save">Save</button>
+                  <button type="button" class="btn-cancel" onclick="toggleEdit({{ trade.id }})">Cancel</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr class="empty-row">
+            <td colspan="11">No trades recorded yet. Add your first trade above.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  // ── Autocomplete ──
+  const input = document.getElementById('stock_name');
+  const list  = document.getElementById('suggest-list');
+
+  input.addEventListener('input', async () => {
+    const q = input.value.trim();
+    if (!q) { list.style.display = 'none'; return; }
+    const res = await fetch('/suggest?q=' + encodeURIComponent(q));
+    const items = await res.json();
+    if (!items.length) { list.style.display = 'none'; return; }
+    list.innerHTML = items.map(s => `<div>${s}</div>`).join('');
+    list.style.display = 'block';
+    list.querySelectorAll('div').forEach(d => {
+      d.addEventListener('mousedown', () => {
+        input.value = d.textContent;
+        list.style.display = 'none';
+      });
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target)) list.style.display = 'none';
+  });
+
+  // ── Inline Edit Toggle ──
+  function toggleEdit(id) {
+    const view = document.getElementById('view-' + id);
+    const edit = document.getElementById('edit-' + id);
+    const isOpen = edit.style.display === 'table-row';
+    edit.style.display = isOpen ? 'none' : 'table-row';
+    view.style.opacity  = isOpen ? '1' : '0.5';
+  }
+
+  // ── AI Trade Insight ──
+  async function loadInsight(id, btn) {
+    const box = document.getElementById('insight-' + id);
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    btn.textContent = '⏳';
+    btn.disabled = true;
+    const res = await fetch('/ai/insight/' + id);
+    const data = await res.json();
+    box.textContent = data.insight;
+    box.style.display = 'block';
+    btn.textContent = '🤖 Insight';
+    btn.disabled = false;
+  }
+
+  // ── AI Performance Summary ──
+  async function loadAISummary() {
+    const box = document.getElementById('ai-summary-box');
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+    box.textContent = '⏳ Analyzing your trades...';
+    box.style.display = 'block';
+    const res = await fetch('/ai/summary');
+    const data = await res.json();
+    box.textContent = data.summary;
+  }
+
+  // ── Chart ──
+  {% if trades %}
+  const rawLabels  = JSON.parse('{{ trades | map(attribute="stock_name") | list | tojson | safe }}');
+  const rawProfits = JSON.parse('{{ trades | map(attribute="profit") | list | tojson | safe }}');
+  const colors  = rawProfits.map(p => p >= 0 ? 'rgba(52,211,153,0.8)' : 'rgba(248,113,113,0.8)');
+  const borders = rawProfits.map(p => p >= 0 ? '#34d399' : '#f87171');
+
+  let chart;
+
+  function buildChart(type) {
+    const ctx = document.getElementById('pnlChart').getContext('2d');
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: type,
+      data: {
+        labels: rawLabels,
+        datasets: [{
+          label: 'Profit / Loss (₹)',
+          data: rawProfits,
+          backgroundColor: type === 'line' ? 'rgba(129,140,248,0.15)' : colors,
+          borderColor: type === 'line' ? '#818cf8' : borders,
+          borderWidth: 2,
+          pointBackgroundColor: borders,
+          fill: type === 'line',
+          tension: 0.4,
+          borderRadius: type === 'bar' ? 6 : 0,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => (ctx.raw >= 0 ? '+' : '') + '₹' + ctx.raw.toFixed(2)
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+          y: { ticks: { color: '#64748b', callback: v => '₹' + v }, grid: { color: 'rgba(255,255,255,0.06)' } }
+        }
+      }
+    });
+  }
+
+  function showChart(type, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    buildChart(type);
+  }
+
+  buildChart('bar');
+  {% endif %}
+</script>
+
+</body>
+</html>

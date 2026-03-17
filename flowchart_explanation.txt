@@ -1,0 +1,325 @@
+====================================================
+  TRADING JOURNAL APP — FLOWCHART EXPLANATION
+====================================================
+
+This file describes the flow of every major route and
+function in the app using ASCII-style flowcharts.
+
+====================================================
+A. APPLICATION STARTUP
+====================================================
+
+    [Run app.py]
+         |
+         v
+    [init_db()]
+         |
+         +---> Does "trades" table exist?
+         |         NO  --> CREATE TABLE trades (...)
+         |         YES --> Skip creation
+         |
+         +---> Check existing columns via PRAGMA
+                   |
+                   +--> Missing buy_date?    --> ALTER TABLE ADD COLUMN
+                   +--> Missing sell_date?   --> ALTER TABLE ADD COLUMN
+                   +--> Missing holding_days?--> ALTER TABLE ADD COLUMN
+         |
+         v
+    [Flask app starts, listens for requests]
+
+
+====================================================
+B. HOME PAGE — GET /
+====================================================
+
+    [User visits "/"]
+         |
+         v
+    [get_all_trades()]
+         |
+         v
+    [get_summary(trades)]
+         |
+         v
+    [Render index.html with trades + summary + message/error]
+         |
+         v
+    [Page displayed to user]
+
+
+====================================================
+C. ADD TRADE — POST /add
+====================================================
+
+    [User submits Add Trade form]
+         |
+         v
+    [Read form fields: stock_name, buy_price, sell_price,
+     quantity, buy_date, sell_date]
+         |
+         v
+    Are ALL fields non-empty?
+         |
+        NO ---------> [Show error: "All fields are required"]
+         |
+        YES
+         |
+         v
+    Are buy_price, sell_price, quantity valid floats?
+         |
+        NO ---------> [Show error: "Must be valid numbers"]
+         |
+        YES
+         |
+         v
+    Are all three values > 0?
+         |
+        NO ---------> [Show error: "Must be positive"]
+         |
+        YES
+         |
+         v
+    Is sell_date >= buy_date?
+         |
+        NO ---------> [Show error: "Sell date cannot be before buy date"]
+         |
+        YES
+         |
+         v
+    [calculate_pnl(buy, sell, qty)]
+         |
+         +--> profit     = (sell - buy) * qty
+         +--> pct_return = (profit / (buy * qty)) * 100
+         |
+         v
+    [holding_days(buy_date, sell_date)]
+         |
+         +--> Parse both dates as YYYY-MM-DD
+         +--> days = max(0, sell_date - buy_date)
+         |
+         v
+    [INSERT trade into DB]
+         |
+         v
+    [Redirect to "/" with success message]
+
+
+====================================================
+D. EDIT TRADE — POST /edit/<id>
+====================================================
+
+    [User submits Edit Trade form]
+         |
+         v
+    [Same 4-step validation as ADD TRADE]
+         |
+        FAIL -------> [Redirect to "/" with error]
+         |
+        PASS
+         |
+         v
+    [calculate_pnl() + holding_days()]
+         |
+         v
+    [UPDATE trades SET ... WHERE id = trade_id]
+         |
+         v
+    [Redirect to "/" with "Trade updated successfully"]
+
+
+====================================================
+E. DELETE TRADE — POST /delete/<id>
+====================================================
+
+    [User clicks Delete]
+         |
+         v
+    [DELETE FROM trades WHERE id = trade_id]
+         |
+         v
+    [Redirect to "/"]
+
+
+====================================================
+F. STOCK AUTOCOMPLETE — GET /suggest?q=...
+====================================================
+
+    [User types in stock name field]
+         |
+         v
+    Is query "q" empty?
+         |
+        YES ---------> [Return empty JSON array []]
+         |
+        NO
+         |
+         v
+    [Query DB: SELECT DISTINCT stock_name WHERE name LIKE 'q%' LIMIT 8]
+         |
+         v
+    [Filter KNOWN_STOCKS list: starts with q, not already in DB results]
+         |
+         v
+    [Merge: DB results first, then KNOWN_STOCKS matches]
+         |
+         v
+    [Return top 8 as JSON array]
+
+
+====================================================
+G. AI INSIGHT — GET /ai/insight/<id>
+====================================================
+
+    [User clicks "Get Insight" on a trade]
+         |
+         v
+    [Fetch trade from DB by id]
+         |
+         v
+    Does trade exist?
+         |
+        NO ---------> [Return JSON: "Trade not found"]
+         |
+        YES
+         |
+         v
+    [Evaluate pct_return]
+         |
+         +--> >= 20%  --> "Excellent trade"
+         +--> >= 10%  --> "Strong return"
+         +--> >= 5%   --> "Decent return"
+         +--> >= 0%   --> "Small gain"
+         +--> >= -5%  --> "Small loss"
+         +--> >= -10% --> "Moderate loss"
+         +--> < -10%  --> "Significant loss"
+         |
+         v
+    [Evaluate holding_days]
+         |
+         +--> 0 days    --> "Intraday trade"
+         +--> 1–3 days  --> "Short-term trade"
+         +--> 4–15 days --> "Swing trade"
+         +--> 16–90d    --> "Medium-term hold"
+         +--> > 90d     --> "Long-term hold" (profit/loss message)
+         |
+         v
+    [Evaluate price move volatility]
+         |
+         +--> move_pct = abs((sell - buy) / buy * 100)
+         +--> < 2% AND loss  --> "Check brokerage costs"
+         +--> > 15%          --> "High volatility warning"
+         |
+         v
+    [Join all tips into one string]
+         |
+         v
+    [Return JSON: { "insight": "..." }]
+
+
+====================================================
+H. AI SUMMARY — GET /ai/summary
+====================================================
+
+    [User clicks "Get Overall Summary"]
+         |
+         v
+    [get_all_trades()]
+         |
+         v
+    Are there any trades?
+         |
+        NO ---------> [Return JSON: "No trades recorded yet"]
+         |
+        YES
+         |
+         v
+    [get_summary(trades)]
+         |
+         v
+    [Report total trades, wins, losses]
+         |
+         v
+    [Evaluate win/loss ratio]
+         |
+         +--> >= 2   --> "Excellent ratio"
+         +--> >= 1   --> "Good ratio"
+         +--> 0 loss --> "No losing trades yet"
+         +--> < 1    --> "Losing more than winning"
+         |
+         v
+    [Evaluate net P&L = total_profit + total_loss]
+         |
+         +--> > 0  --> "Net P&L positive"
+         +--> < 0  --> "Net P&L negative"
+         +--> == 0 --> "Breakeven"
+         |
+         v
+    [Calculate average holding days]
+         |
+         +--> <= 1d --> "Intraday trader"
+         +--> <= 7d --> "Swing trader"
+         +--> > 7d  --> "Positional trader"
+         |
+         v
+    [Find best trade: max(pct_return)]
+    [Find worst trade: min(pct_return)]
+         |
+         v
+    [Join all tips into one string]
+         |
+         v
+    [Return JSON: { "summary": "..." }]
+
+
+====================================================
+I. DB CONNECTION LIFECYCLE (per request)
+====================================================
+
+    [HTTP Request arrives]
+         |
+         v
+    [get_db() called]
+         |
+         v
+    Does g._database exist?
+         |
+        YES ---------> [Reuse existing connection]
+         |
+        NO
+         |
+         v
+    [Open new sqlite3.connect("trades.db")]
+    [Set row_factory = sqlite3.Row]
+    [Store in g._database]
+         |
+         v
+    [Request handled ...]
+         |
+         v
+    [Request ends → teardown triggered]
+         |
+         v
+    [close_connection() called]
+         |
+         v
+    Does g._database exist?
+         |
+        YES --> [db.close()]
+        NO  --> [Do nothing]
+
+
+====================================================
+OVERALL APP FLOW SUMMARY
+====================================================
+
+    Browser
+      |
+      |--- GET  /              --> index()       --> renders trade list + summary
+      |--- POST /add           --> add_trade()   --> validates + inserts + redirects
+      |--- POST /edit/<id>     --> edit_trade()  --> validates + updates + redirects
+      |--- POST /delete/<id>   --> delete_trade()--> deletes + redirects
+      |--- GET  /suggest?q=.. --> suggest()      --> returns JSON autocomplete list
+      |--- GET  /ai/insight/<id>--> ai_insight() --> returns JSON trade tip
+      |--- GET  /ai/summary   --> ai_summary()   --> returns JSON overall analysis
+
+====================================================
